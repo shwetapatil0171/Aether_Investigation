@@ -1,162 +1,173 @@
-from flask import Flask, render_template, session, redirect, url_for
+import os
 import random
+from flask import Flask, render_template, session, redirect, url_for
 
-from data import victims, locations, suspects, weapons, occupations, ages, personalities
+from data import (
+    victims, locations, suspect_names, weapons, occupations,
+    ages, personalities, motives, clue_pool, interrogation_lines
+)
 
 app = Flask(__name__)
-app.secret_key = "aether_secret_key"
+app.secret_key = os.environ.get("SECRET_KEY", "aether_dev_secret_key")
+
+MAX_ATTEMPTS = 3
+NUM_SUSPECTS = 6
 
 
-# -------------------------
-# SCORE SYSTEM
-# -------------------------
-def calculate_score(suspect, evidence_list):
-    score = 0
-
-    if suspect["clue"] in evidence_list:
-        score += 5
-
-    if suspect["clue"] == "Has scratches on hands":
-        score += 3
-    elif suspect["clue"] == "Was nervous during questioning":
-        score += 2
-    elif suspect["clue"] == "Has no alibi":
-        score += 4
-    elif suspect["clue"] == "Avoids eye contact":
-        score += 1
-
-    return score
-
-
-# -------------------------
-# CASE GENERATION
-# -------------------------
 def generate_case():
-    case_suspects = []
-    suspect_scores = []
+    chosen_names = random.sample(suspect_names, NUM_SUSPECTS)
+    chosen_clues = random.sample(clue_pool, NUM_SUSPECTS)
 
-    for i in range(4):
+    case_suspects = []
+    weighted_choices = []
+
+    for i in range(NUM_SUSPECTS):
+        clue = chosen_clues[i]
         suspect = {
-            "name": suspects[i],
+            "name": chosen_names[i],
             "occupation": random.choice(occupations),
             "age": random.choice(ages),
             "personality": random.choice(personalities),
-            "clue": random.choice([
-                "Saw near crime scene",
-                "Has scratches on hands",
-                "Was nervous during questioning",
-                "Has no alibi",
-                "Avoids eye contact",
-                "Claims innocence"
-            ])
+            "motive": random.choice(motives),
+            "clue": clue["text"],
+            "clue_weight": clue["weight"],
+            "interrogated": False,
+            "evidence_collected": False,
         }
-
         case_suspects.append(suspect)
+        weighted_choices.append(clue["weight"])
 
-    # initial scoring (before evidence)
-    for s in case_suspects:
-        suspect_scores.append(random.randint(1, 5))
-
-    killer_index = suspect_scores.index(max(suspect_scores))
+    killer_index = random.choices(range(NUM_SUSPECTS), weights=weighted_choices, k=1)[0]
 
     return {
         "victim": random.choice(victims),
         "location": random.choice(locations),
         "weapon": random.choice(weapons),
         "suspects": case_suspects,
-        "scores": suspect_scores,
         "killer": killer_index,
-        "evidence": []
+        "attempts_left": MAX_ATTEMPTS,
+        "closed": False,
     }
 
 
-# -------------------------
-# HOME PAGE
-# -------------------------
+def total_clue_weight(case):
+    return sum(s["clue_weight"] for s in case["suspects"]) or 1
+
+
+def suspicion_percent(suspect, case):
+    if not suspect["evidence_collected"]:
+        return 0
+    return round((suspect["clue_weight"] / total_clue_weight(case)) * 100)
+
+
 @app.route("/")
 def home():
+    if "case" not in session:
+        session["case"] = generate_case()
+    case = session["case"]
+    for s in case["suspects"]:
+        s["suspicion"] = suspicion_percent(s, case)
+    return render_template("index.html", case=case,
+                            score=session.get("score", 0),
+                            cases_solved=session.get("cases_solved", 0))
+
+
+@app.route("/new-case")
+def new_case():
     session["case"] = generate_case()
-    return render_template("index.html", case=session["case"])
+    return redirect(url_for("home"))
 
 
-# -------------------------
-# INTERROGATION PAGE
-# -------------------------
+@app.route("/reset")
+def reset():
+    session.clear()
+    return redirect(url_for("home"))
+
+
 @app.route("/interrogate/<int:index>")
 def interrogate(index):
     case = session.get("case")
-
     if not case:
-        return redirect("/")
+        return redirect(url_for("home"))
 
     suspect = case["suspects"][index]
+    suspect["interrogated"] = True
+    session["case"] = case
 
-    response = random.choice([
-        f"{suspect['name']} looks nervous...",
-        f"{suspect['name']} avoids eye contact...",
-        f"{suspect['name']} is too calm...",
-        f"{suspect['name']} hesitates before answering..."
-    ])
+    lines = interrogation_lines.get(suspect["personality"], ["{name} answers carefully."])
+    response = random.choice(lines).format(name=suspect["name"])
 
     return render_template(
         "interrogate.html",
         suspect=suspect,
-        response=response
+        index=index,
+        response=response,
+        evidence_collected=suspect["evidence_collected"],
     )
 
 
-# -------------------------
-# COLLECT EVIDENCE
-# -------------------------
 @app.route("/evidence/<int:index>")
 def evidence(index):
     case = session.get("case")
-
     if not case:
-        return redirect("/")
+        return redirect(url_for("home"))
 
     suspect = case["suspects"][index]
-    clue = suspect["clue"]
-
-    if clue not in case["evidence"]:
-        case["evidence"].append(clue)
+    if suspect["interrogated"]:
+        suspect["evidence_collected"] = True
 
     session["case"] = case
+    return redirect(url_for("home"))
 
-    return render_template("index.html", case=case)
 
-
-# -------------------------
-# ACCUSE SYSTEM
-# -------------------------
 @app.route("/accuse/<int:index>")
 def accuse(index):
     case = session.get("case")
+    if not case or case["closed"]:
+        return redirect(url_for("home"))
 
-    if not case:
-        return redirect("/")
-
-    evidence = case.get("evidence", [])
-
-    scores = []
-    for s in case["suspects"]:
-        scores.append(calculate_score(s, evidence))
-
-    killer_index = scores.index(max(scores))
+    killer_index = case["killer"]
+    history = session.get("history", [])
 
     if index == killer_index:
-        result = "🎉 Correct! You solved the case!"
-    else:
-        result = f"❌ Wrong! The killer was {case['suspects'][killer_index]['name']}"
+        case["closed"] = True
+        session["score"] = session.get("score", 0) + (case["attempts_left"] * 10)
+        session["cases_solved"] = session.get("cases_solved", 0) + 1
+        history.append({
+            "victim": case["victim"],
+            "killer": case["suspects"][killer_index]["name"],
+            "solved": True,
+        })
+        session["history"] = history
+        session["case"] = case
+        return render_template("result.html", won=True, case=case,
+                                killer=case["suspects"][killer_index])
 
-    return render_template("index.html", case=case, result=result)
+    case["attempts_left"] -= 1
+
+    if case["attempts_left"] <= 0:
+        case["closed"] = True
+        history.append({
+            "victim": case["victim"],
+            "killer": case["suspects"][killer_index]["name"],
+            "solved": False,
+        })
+        session["history"] = history
+        session["case"] = case
+        return render_template("result.html", won=False, case=case,
+                                killer=case["suspects"][killer_index])
+
+    session["case"] = case
+    return render_template("result.html", won=None, case=case,
+                            wrong_name=case["suspects"][index]["name"])
 
 
-# -------------------------
-# RUN APP
-# -------------------------
-if __name__ == "__main__":
-   import os
+@app.route("/history")
+def history():
+    return render_template("history.html",
+                            history=session.get("history", []),
+                            score=session.get("score", 0))
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
