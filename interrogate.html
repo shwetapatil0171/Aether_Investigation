@@ -2,40 +2,17 @@
 <html>
 <head>
     <title>Interrogation Room</title>
-
     <style>
-        body {
-            background: #0f172a;
-            color: white;
-            font-family: Arial;
-            text-align: center;
-            padding: 40px;
-        }
-
-        .box {
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 10px;
-            width: 60%;
-            margin: auto;
-        }
-
-        .btn {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 15px;
-            background: #22c55e;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-        }
-
-        .btn:hover {
-            background: #16a34a;
-        }
+        body { background: #0f172a; color: white; font-family: Arial; text-align: center; padding: 40px; }
+        .box { background: #1e293b; padding: 25px; border-radius: 10px; width: 60%; margin: auto; }
+        .btn { display: inline-block; margin-top: 16px; margin-right: 8px; padding: 10px 15px; color: white; text-decoration: none; border-radius: 6px; }
+        .back { background: #22c55e; }
+        .back:hover { background: #16a34a; }
+        .evidence { background: #f59e0b; }
+        .evidence:hover { background: #d97706; }
+        .response { font-style: italic; color: #cbd5e1; margin-top: 15px; padding: 12px; background: #0f172a; border-radius: 8px; }
     </style>
 </head>
-
 <body>
 
 <h1>🧠 Interrogation Room</h1>
@@ -48,9 +25,14 @@
 
     <hr>
 
-    <p>{{ response }}</p>
+    <p class="response">{{ response }}</p>
 
-    <a class="btn" href="/">⬅ Back to Case</a>
+    {% if not evidence_collected %}
+        <a class="btn evidence" href="/evidence/{{ index }}">🔍 Collect Evidence</a>
+    {% else %}
+        <p style="color:#22c55e;">✅ Evidence already collected from this suspect.</p>
+    {% endif %}
+    <a class="btn back" href="/">⬅ Back to Case</a>
 </div>
 
 </body>
