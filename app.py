@@ -13,6 +13,20 @@ app.secret_key = os.environ.get("SECRET_KEY", "aether_dev_secret_key")
 MAX_ATTEMPTS = 3
 NUM_SUSPECTS = 6
 
+crime_scene_images = {
+    "Old Warehouse": "warehouse.jpg",
+    "Hill Station Resort": "hotel.jpg",
+    "Office Building": "office.jpg",
+    "Train Compartment": "train.jpg",
+    "Farmhouse": "farmhouse.jpg",
+    "Art Gallery": "gallery.jpg",
+
+    # Extra locations reuse existing images
+    "Mumbai Apartment": "hotel.jpg",
+    "Pune Hostel": "hotel.jpg",
+    "Riverside Bungalow": "farmhouse.jpg",
+    "Rooftop Restaurant": "gallery.jpg"
+}
 
 def generate_case():
     chosen_names = random.sample(suspect_names, NUM_SUSPECTS)
@@ -38,15 +52,25 @@ def generate_case():
         weighted_choices.append(clue["weight"])
 
     killer_index = random.choices(range(NUM_SUSPECTS), weights=weighted_choices, k=1)[0]
+    location = random.choice(locations)
+    tips = [
+    "The guilty often avoid eye contact.",
+    "Not every clue tells the truth.",
+    "A strong motive doesn't always mean guilt.",
+    "Liars usually change small details.",
+    "Interrogate everyone before accusing."
+]
 
     return {
         "victim": random.choice(victims),
-        "location": random.choice(locations),
+         "location": location,
+         "scene_image": crime_scene_images[location],
         "weapon": random.choice(weapons),
         "suspects": case_suspects,
         "killer": killer_index,
         "attempts_left": MAX_ATTEMPTS,
         "closed": False,
+        "tip": random.choice(tips),
     }
 
 
@@ -59,8 +83,29 @@ def suspicion_percent(suspect, case):
         return 0
     return round((suspect["clue_weight"] / total_clue_weight(case)) * 100)
 
-
 @app.route("/")
+def landing():
+    return render_template("landing.html")
+
+@app.route("/briefing")
+def briefing():
+    return render_template("briefing.html")
+
+@app.route("/crime-scene")
+def crime_scene():
+
+    case = session.get("case")
+
+    if not case:
+        session["case"] = generate_case()
+        case = session["case"]
+
+    return render_template(
+        "crime_scene.html",
+        case=case
+    ) 
+
+@app.route("/start")
 def home():
     if "case" not in session:
         session["case"] = generate_case()
@@ -161,6 +206,34 @@ def accuse(index):
     return render_template("result.html", won=None, case=case,
                             wrong_name=case["suspects"][index]["name"])
 
+@app.route("/notebook")
+def notebook():
+
+    case = session.get("case")
+
+    if not case:
+        return redirect(url_for("home"))
+
+    interrogated = []
+    evidence = []
+
+    for suspect in case["suspects"]:
+
+        if suspect["interrogated"]:
+            interrogated.append(suspect["name"])
+
+        if suspect["evidence_collected"]:
+            evidence.append({
+                "name": suspect["name"],
+                "clue": suspect["clue"]
+            })
+
+    return render_template(
+        "notebook.html",
+        case=case,
+        interrogated=interrogated,
+        evidence=evidence
+    )
 
 @app.route("/history")
 def history():
