@@ -4,29 +4,15 @@ from flask import Flask, render_template, session, redirect, url_for
 
 from data import (
     victims, locations, suspect_names, weapons, occupations,
-    ages, personalities, motives, clue_pool, interrogation_lines
+    ages, personalities, motives, clue_pool, interrogation_lines,
+    location_images
 )
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "aether_dev_secret_key")
 
 MAX_ATTEMPTS = 3
 NUM_SUSPECTS = 6
 
-crime_scene_images = {
-    "Old Warehouse": "warehouse.jpg",
-    "Hill Station Resort": "hotel.jpg",
-    "Office Building": "office.jpg",
-    "Train Compartment": "train.jpg",
-    "Farmhouse": "farmhouse.jpg",
-    "Art Gallery": "gallery.jpg",
-
-    # Extra locations reuse existing images
-    "Mumbai Apartment": "hotel.jpg",
-    "Pune Hostel": "hotel.jpg",
-    "Riverside Bungalow": "farmhouse.jpg",
-    "Rooftop Restaurant": "gallery.jpg"
-}
 
 def generate_case():
     chosen_names = random.sample(suspect_names, NUM_SUSPECTS)
@@ -64,7 +50,7 @@ def generate_case():
     return {
         "victim": random.choice(victims),
          "location": location,
-         "scene_image": crime_scene_images[location],
+         "scene_image": location_images.get(location),
         "weapon": random.choice(weapons),
         "suspects": case_suspects,
         "killer": killer_index,
