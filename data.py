@@ -4,11 +4,18 @@ victims = [
     "Rohan Bhatt", "Kavya Reddy"
 ]
 
-locations = [
-    "Mumbai Apartment", "Pune Hostel", "Office Building", "Old Warehouse",
-    "Hill Station Resort", "Riverside Bungalow", "Art Gallery", "Train Compartment",
-    "Farmhouse", "Rooftop Restaurant"
-]
+location_images = {
+    "Mumbai Apartment": "apartment.jpg",
+    "Pune Hostel": "hostel.jpg",
+    "Office Building": "office.jpg",
+    "Old Warehouse": "old_warehouse.jpg",
+    "Hill Station Resort": "resort.jpg",
+    "Riverside Bungalow": "riverside_bungalow.jpg",
+    "Art Gallery": "art_gallery.jpg",
+    "Train Compartment": "train.jpg",
+    "Farmhouse": "farmhouse.jpg",
+    "Rooftop Restaurant": "rooftop_restaurant.jpg",
+}
 
 weapons = [
     "Knife", "Gun", "Rope", "Poison", "Blunt Object", "Broken Glass"
