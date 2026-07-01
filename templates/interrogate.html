@@ -18,11 +18,12 @@
 <h1>🧠 Interrogation Room</h1>
 
 <div class="box">
-    <h2>{{ suspect.name }}</h2><img src="{{ url_for('static', filename='images/suspects/suspect.png') }}"
-     width="120"
-     style="border-radius:50%;
-            border:4px solid #22c55e;
-            margin-bottom:20px;">
+    <h2>{{ suspect.name }}</h2>
+    <img src="{{ url_for('static', filename='images/suspects/suspect.png') }}"
+         width="120"
+         style="border-radius:50%;
+                border:4px solid #22c55e;
+                margin-bottom:20px;">
 
     <p><b>Occupation:</b> {{ suspect.occupation }}</p>
     <p><b>Age:</b> {{ suspect.age }}</p>
@@ -37,7 +38,7 @@
     {% else %}
         <p style="color:#22c55e;">✅ Evidence already collected from this suspect.</p>
     {% endif %}
-    <a class="btn back" href="/">⬅ Back to Case</a>
+    <a class="btn back" href="/start">⬅ Back to Case</a>
 </div>
 
 </body>
