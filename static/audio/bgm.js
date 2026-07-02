@@ -1,61 +1,78 @@
 const AetherBGM = (() => {
     let ctx;
     let masterGain;
-    let nodes = [];
     let running = false;
+    let stepTimer = null;
+    let stepIndex = 0;
 
-    const chordNotes = [
-        [110.00, 130.81, 164.81],
-        [98.00, 123.47, 146.83],
-        [110.00, 130.81, 164.81],
-        [87.31, 110.00, 130.81],
+    // Walking bass line (noir minor feel) - one note per beat, 8 beats
+    const bassNotes = [55.00, 58.27, 61.74, 55.00, 49.00, 51.91, 55.00, 61.74];
+
+    // Sparse mysterious piano notes - plays occasionally, not every beat
+    const pianoPattern = [
+        null, 220.00, null, null, 261.63, null, 196.00, null
     ];
-    let chordIndex = 0;
-    let chordTimer = null;
 
     function getCtx() {
         if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
         return ctx;
     }
 
-    function playChord(freqs) {
+    function pluck(freq, time, gainNode, duration = 0.4, type = "triangle") {
         const audioCtx = getCtx();
-        const now = audioCtx.currentTime;
-        const chordGain = audioCtx.createGain();
-        chordGain.gain.value = 0;
-        chordGain.connect(masterGain);
-
-        freqs.forEach((freq) => {
-            const osc = audioCtx.createOscillator();
-            osc.type = "sine";
-            osc.frequency.value = freq;
-
-            const lfo = audioCtx.createOscillator();
-            lfo.frequency.value = 0.1 + Math.random() * 0.1;
-            const lfoGain = audioCtx.createGain();
-            lfoGain.gain.value = 2;
-            lfo.connect(lfoGain);
-            lfoGain.connect(osc.frequency);
-            lfo.start(now);
-
-            osc.connect(chordGain);
-            osc.start(now);
-
-            nodes.push(osc, lfo);
-        });
-
-        chordGain.gain.linearRampToValueAtTime(0.15, now + 2);
-        chordGain.gain.linearRampToValueAtTime(0.15, now + 6);
-        chordGain.gain.linearRampToValueAtTime(0, now + 8);
-
-        nodes.push(chordGain);
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(g);
+        g.connect(gainNode);
+        g.gain.setValueAtTime(0, time);
+        g.gain.linearRampToValueAtTime(0.25, time + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, time + duration);
+        osc.start(time);
+        osc.stop(time + duration);
     }
 
-    function loop() {
+    function hihat(time, gainNode) {
+        const audioCtx = getCtx();
+        const bufferSize = audioCtx.sampleRate * 0.05;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.15;
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = "highpass";
+        filter.frequency.value = 6000;
+        const g = audioCtx.createGain();
+        g.gain.setValueAtTime(0.06, time);
+        g.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+        noise.connect(filter);
+        filter.connect(g);
+        g.connect(gainNode);
+        noise.start(time);
+    }
+
+    function step() {
         if (!running) return;
-        playChord(chordNotes[chordIndex]);
-        chordIndex = (chordIndex + 1) % chordNotes.length;
-        chordTimer = setTimeout(loop, 6000);
+        const audioCtx = getCtx();
+        const now = audioCtx.currentTime;
+        const beatLen = 0.7; // seconds per beat - slow, noir tempo
+
+        pluck(bassNotes[stepIndex], now, masterGain, beatLen * 0.95, "triangle");
+
+        const pianoNote = pianoPattern[stepIndex];
+        if (pianoNote) {
+            pluck(pianoNote, now + 0.05, masterGain, 1.2, "sine");
+        }
+
+        // soft swung hi-hat on off-beats
+        hihat(now + beatLen * 0.5, masterGain);
+
+        stepIndex = (stepIndex + 1) % bassNotes.length;
+        stepTimer = setTimeout(step, beatLen * 1000);
     }
 
     function start() {
@@ -68,7 +85,7 @@ const AetherBGM = (() => {
             masterGain.connect(audioCtx.destination);
         }
         running = true;
-        loop();
+        step();
     }
 
     function setMuted(muted) {
